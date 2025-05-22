@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { Button } from '@/components/ui/button';
@@ -12,22 +12,60 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { LogOut, Settings, User } from 'lucide-react';
+import supabase from '@/lib/supabase';
 
 const AuthButton = () => {
   const { user, signOut } = useAuth();
   const navigate = useNavigate();
+  const [userName, setUserName] = useState<string>('');
+
+  useEffect(() => {
+    const fetchUserProfile = async () => {
+      if (!user) return;
+      
+      try {
+        // Try to get user metadata from auth
+        const { data: userData } = await supabase.auth.getUser();
+        const metadata = userData.user?.user_metadata;
+        
+        if (metadata?.name) {
+          setUserName(metadata.name);
+          return;
+        }
+        
+        // If not in auth metadata, try from users table
+        const { data, error } = await supabase
+          .from('users')
+          .select('name')
+          .eq('id', user.id)
+          .single();
+        
+        if (data && !error) {
+          setUserName(data.name);
+        }
+      } catch (error) {
+        console.error('Error fetching user profile:', error);
+      }
+    };
+    
+    fetchUserProfile();
+  }, [user]);
 
   if (!user) return null;
 
   // Get initials from name or email
   const getInitials = () => {
-    if (!user) return '?';
+    if (userName) {
+      const nameParts = userName.trim().split(' ');
+      if (nameParts.length >= 2) {
+        return `${nameParts[0].charAt(0)}${nameParts[1].charAt(0)}`.toUpperCase();
+      }
+      return userName.charAt(0).toUpperCase();
+    }
     
-    // Try to get name from Supabase Auth metadata
+    // Fall back to email if no name
     const email = user.email || '';
-    const firstLetter = email.charAt(0).toUpperCase();
-    
-    return firstLetter;
+    return email.charAt(0).toUpperCase();
   };
 
   return (
@@ -42,7 +80,8 @@ const AuthButton = () => {
       <DropdownMenuContent align="end" forceMount>
         <div className="flex items-center justify-start gap-2 p-2">
           <div className="flex flex-col space-y-1 leading-none">
-            <p className="font-medium">{user.email}</p>
+            {userName && <p className="font-medium">{userName}</p>}
+            <p className="text-sm text-muted-foreground">{user.email}</p>
           </div>
         </div>
         <DropdownMenuSeparator />

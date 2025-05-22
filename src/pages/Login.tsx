@@ -15,41 +15,57 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
+import { AlertCircle } from 'lucide-react';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 
 const Login = () => {
   const navigate = useNavigate();
   const { signIn, signUp, isLoading } = useAuth();
   const { toast } = useToast();
   
-  // State untuk login form
+  // State for login form
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
+  const [loginError, setLoginError] = useState('');
   
-  // State untuk signup form
+  // State for signup form
   const [signupEmail, setSignupEmail] = useState('');
   const [signupPassword, setSignupPassword] = useState('');
   const [signupName, setSignupName] = useState('');
+  const [signupError, setSignupError] = useState('');
   
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    setLoginError('');
     try {
       await signIn(loginEmail, loginPassword);
       navigate('/');
-    } catch (error) {
-      // Error sudah ditangani di AuthContext
+    } catch (error: any) {
+      setLoginError(error.message);
     }
   };
   
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
+    setSignupError('');
+    
+    if (signupPassword.length < 6) {
+      setSignupError('Password harus minimal 6 karakter');
+      return;
+    }
+    
     try {
       await signUp(signupEmail, signupPassword, signupName);
       toast({
         title: "Registrasi berhasil",
-        description: "Silahkan login dengan akun baru Anda",
+        description: "Silahkan cek email Anda untuk verifikasi.",
       });
-    } catch (error) {
-      // Error sudah ditangani di AuthContext
+      // Reset form
+      setSignupName('');
+      setSignupEmail('');
+      setSignupPassword('');
+    } catch (error: any) {
+      setSignupError(error.message);
     }
   };
   
@@ -73,6 +89,12 @@ const Login = () => {
             <TabsContent value="login">
               <form onSubmit={handleLogin}>
                 <div className="grid gap-4">
+                  {loginError && (
+                    <Alert variant="destructive">
+                      <AlertCircle className="h-4 w-4" />
+                      <AlertDescription>{loginError}</AlertDescription>
+                    </Alert>
+                  )}
                   <div className="grid gap-2">
                     <Label htmlFor="email">Email</Label>
                     <Input
@@ -103,6 +125,12 @@ const Login = () => {
             <TabsContent value="register">
               <form onSubmit={handleSignUp}>
                 <div className="grid gap-4">
+                  {signupError && (
+                    <Alert variant="destructive">
+                      <AlertCircle className="h-4 w-4" />
+                      <AlertDescription>{signupError}</AlertDescription>
+                    </Alert>
+                  )}
                   <div className="grid gap-2">
                     <Label htmlFor="name">Nama</Label>
                     <Input
@@ -132,8 +160,10 @@ const Login = () => {
                       type="password"
                       value={signupPassword}
                       onChange={(e) => setSignupPassword(e.target.value)}
+                      minLength={6}
                       required
                     />
+                    <p className="text-xs text-gray-500">Minimal 6 karakter</p>
                   </div>
                   <Button type="submit" className="w-full" disabled={isLoading}>
                     {isLoading ? "Memproses..." : "Daftar"}

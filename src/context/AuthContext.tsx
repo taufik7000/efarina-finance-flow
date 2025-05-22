@@ -23,14 +23,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const { toast } = useToast();
 
   useEffect(() => {
-    // Cek session ketika komponen di-mount
+    // Check session when component mounts
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       setUser(session?.user ?? null);
       setIsLoading(false);
     });
 
-    // Set up listener untuk perubahan auth
+    // Set up listener for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (_event, session) => {
         setSession(session);
@@ -54,6 +54,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         description: "Selamat datang kembali!",
       });
     } catch (error: any) {
+      console.error("Login error:", error.message);
       toast({
         title: "Login gagal",
         description: error.message,
@@ -68,31 +69,48 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signUp = async (email: string, password: string, name: string) => {
     try {
       setIsLoading(true);
-      // Daftar user baru di Auth
-      const { data: authData, error: authError } = await supabase.auth.signUp({ email, password });
+      
+      // Register new user in Auth
+      const { data: authData, error: authError } = await supabase.auth.signUp({ 
+        email, 
+        password,
+        options: {
+          data: {
+            name: name,
+          },
+        }
+      });
+      
       if (authError) throw authError;
 
+      // If the user was created successfully
       if (authData.user) {
-        // Simpan data tambahan di tabel users
+        console.log("User created in auth:", authData.user.id);
+        
+        // Store additional data in users table
         const { error: profileError } = await supabase.from('users').insert([
           {
             id: authData.user.id,
             name,
             email,
-            role: 'user', // Default role
-            department: 'Umum', // Default department
-            status: 'active', // Default status
+            role: 'user',
+            department: 'Umum',
+            status: 'active',
           }
         ]);
 
-        if (profileError) throw profileError;
+        if (profileError) {
+          console.error("Error inserting user profile:", profileError);
+          throw profileError;
+        }
+        
+        toast({
+          title: "Pendaftaran berhasil",
+          description: "Silahkan verifikasi email Anda untuk menyelesaikan proses pendaftaran",
+        });
       }
-
-      toast({
-        title: "Pendaftaran berhasil",
-        description: "Akun Anda berhasil dibuat",
-      });
     } catch (error: any) {
+      console.error("Signup error:", error.message);
       toast({
         title: "Pendaftaran gagal",
         description: error.message,
@@ -114,6 +132,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         description: "Anda telah keluar dari sistem",
       });
     } catch (error: any) {
+      console.error("Logout error:", error.message);
       toast({
         title: "Logout gagal",
         description: error.message,
@@ -141,6 +160,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         description: "Perubahan profil telah disimpan",
       });
     } catch (error: any) {
+      console.error("Update profile error:", error.message);
       toast({
         title: "Update profil gagal",
         description: error.message,
