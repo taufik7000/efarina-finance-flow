@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { 
@@ -67,7 +66,7 @@ const getRoleBadgeVariant = (role: string) => {
 };
 
 const getStatusBadgeVariant = (status: string) => {
-  return status === 'active' ? 'success' : 'secondary';
+  return status === 'active' ? 'secondary' : 'outline';
 };
 
 const UsersPage = () => {
