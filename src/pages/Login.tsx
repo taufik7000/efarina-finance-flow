@@ -17,6 +17,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
 import { AlertCircle } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import supabase from '@/lib/supabase';
 
 const Login = () => {
   const navigate = useNavigate();
@@ -67,6 +68,12 @@ const Login = () => {
     } catch (error: any) {
       setSignupError(error.message);
     }
+  };
+
+  // Function to fill in dummy user credentials
+  const useDummyCredentials = () => {
+    setLoginEmail('demo@efarina.tv');
+    setLoginPassword('123456');
   };
   
   return (
@@ -119,6 +126,22 @@ const Login = () => {
                   <Button type="submit" className="w-full" disabled={isLoading}>
                     {isLoading ? "Memproses..." : "Login"}
                   </Button>
+                  
+                  {/* Dummy user login button */}
+                  <Button 
+                    type="button" 
+                    variant="outline" 
+                    onClick={useDummyCredentials}
+                    className="w-full"
+                  >
+                    Gunakan Akun Demo
+                  </Button>
+                  
+                  <div className="text-xs text-gray-500 mt-2 border-t pt-2">
+                    <p><strong>Akun Demo:</strong></p>
+                    <p>Email: demo@efarina.tv</p>
+                    <p>Password: 123456</p>
+                  </div>
                 </div>
               </form>
             </TabsContent>
