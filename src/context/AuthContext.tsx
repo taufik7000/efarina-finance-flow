@@ -1,5 +1,6 @@
+
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { Session, User } from '@supabase/supabase-js';
+import { Session, User, AdminUserAttributes } from '@supabase/supabase-js';
 import supabase from '../lib/supabase';
 import { useToast } from '@/hooks/use-toast';
 
@@ -85,7 +86,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           let userId = authData?.user?.id;
           
           if (!userId) {
-            // Try to get existing user - fixed the email property access
+            // Try to get existing user
             const { data: usersData, error: usersError } = await supabase.auth.admin.listUsers();
             if (usersError) {
               console.error('Error listing users:', usersError);
@@ -93,7 +94,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             }
             
             if (usersData && usersData.users) {
-              const existingAuthUser = usersData.users.find(u => u.email === 'demo@efarina.tv');
+              const existingAuthUser = usersData.users.find(user => {
+                return user.email === 'demo@efarina.tv';
+              });
               userId = existingAuthUser?.id;
             }
           }
@@ -176,7 +179,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       setIsLoading(true);
       
-      // Register new user in Auth
+      // Register new user in Auth without email verification
       const { data: authData, error: authError } = await supabase.auth.signUp({ 
         email, 
         password,
@@ -184,6 +187,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           data: {
             name: name,
           },
+          // Don't require email confirmation
           emailRedirectTo: window.location.origin + '/login'
         }
       });
@@ -214,9 +218,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           console.error("Error during profile creation:", insertError);
         }
         
+        // After registration, automatically sign in the user
+        await signIn(email, password);
+        
         toast({
           title: "Pendaftaran berhasil",
-          description: "Silahkan verifikasi email Anda untuk menyelesaikan proses pendaftaran",
+          description: "Akun Anda telah dibuat dan login otomatis berhasil",
         });
       }
     } catch (error: any) {

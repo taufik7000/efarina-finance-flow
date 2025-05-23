@@ -69,14 +69,7 @@ const Login = () => {
     
     try {
       await signUp(signupEmail, signupPassword, signupName);
-      toast({
-        title: "Registrasi berhasil",
-        description: "Silahkan cek email Anda untuk verifikasi.",
-      });
-      // Reset form
-      setSignupName('');
-      setSignupEmail('');
-      setSignupPassword('');
+      // The navigation to home page will happen automatically since we added auto-login after signup
     } catch (error: any) {
       setSignupError(error.message || 'Terjadi kesalahan saat mendaftar');
     }
