@@ -12,7 +12,7 @@ interface AuthContextProps {
   signUp: (email: string, password: string, name: string) => Promise<void>;
   signOut: () => Promise<void>;
   updateProfile: (data: { name?: string }) => Promise<void>;
-  createDummyUser?: () => Promise<void>; // Optional method for creating dummy user
+  createDummyUser?: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextProps | undefined>(undefined);
@@ -23,92 +23,89 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
 
+  // Initialize database tables if they don't exist
+  useEffect(() => {
+    const initializeDatabase = async () => {
+      try {
+        // Check if users table exists, if not create it
+        const { error: tableError } = await supabase.rpc('create_users_table_if_not_exists');
+        if (tableError) {
+          console.warn('Could not run RPC, trying to create table directly:', tableError);
+          
+          // Try to create the table directly if RPC fails
+          const { error: createError } = await supabase.query(`
+            CREATE TABLE IF NOT EXISTS public.users (
+              id UUID PRIMARY KEY REFERENCES auth.users(id),
+              name TEXT,
+              email TEXT UNIQUE NOT NULL,
+              role TEXT DEFAULT 'user',
+              department TEXT,
+              status TEXT DEFAULT 'active',
+              created_at TIMESTAMP WITH TIME ZONE DEFAULT now()
+            );
+          `);
+          
+          if (createError) {
+            console.error('Error creating users table:', createError);
+          } else {
+            console.log('Users table created or already exists');
+          }
+        }
+      } catch (error) {
+        console.error('Error initializing database:', error);
+      }
+    };
+
+    initializeDatabase();
+  }, []);
+
   // Create dummy user on component mount - will run only once
   useEffect(() => {
     const createDummyUserIfNotExists = async () => {
       try {
-        // Check if the dummy user exists
-        const { data: existingUsers, error: checkError } = await supabase
+        // First create auth user
+        const { data: authData, error: authError } = await supabase.auth.signUp({
+          email: 'demo@efarina.tv',
+          password: '123456',
+          options: {
+            data: {
+              name: 'User Demo',
+            }
+          }
+        });
+        
+        if (authError && !authError.message.includes('already')) {
+          console.error('Error creating dummy user auth:', authError);
+          return;
+        }
+        
+        // If user was created or already exists, try to add to users table
+        const { data: existingUser, error: checkError } = await supabase
           .from('users')
           .select('*')
           .eq('email', 'demo@efarina.tv')
           .limit(1);
         
         if (checkError) {
-          console.error('Error checking for dummy user:', checkError);
-          return;
+          console.warn('Could not check if dummy user exists:', checkError);
         }
 
-        // If dummy user doesn't exist, create one
-        if (!existingUsers || existingUsers.length === 0) {
-          // First try to create the user in auth
-          const { data: authData, error: authError } = await supabase.auth.admin.createUser({
-            email: 'demo@efarina.tv',
-            password: '123456',
-            email_confirm: true, // Auto confirm email
-            user_metadata: {
-              name: 'User Demo'
-            }
-          });
-
-          // If there was an error creating the user in auth but it's not because the user exists
-          if (authError && !authError.message.includes('already exists')) {
-            console.error('Error creating dummy user in auth:', authError);
-            
-            // Fallback to signUp method
-            try {
-              const { data, error } = await supabase.auth.signUp({
-                email: 'demo@efarina.tv',
-                password: '123456',
-                options: {
-                  data: {
-                    name: 'User Demo',
-                  }
-                }
-              });
-              
-              if (error) throw error;
-              
-              // Insert directly to users table if auth user was created
-              if (data.user) {
-                await supabase.from('users').insert([{
-                  id: data.user.id,
-                  name: 'User Demo',
-                  email: 'demo@efarina.tv',
-                  role: 'user',
-                  department: 'Demo',
-                  status: 'active',
-                }]);
-              }
-              
-              console.log('Dummy user created via signUp');
-            } catch (signupError) {
-              console.error('Failed to create dummy user via signUp:', signupError);
-            }
-          } 
-          // If the auth user was created successfully or already exists
-          else {
-            // Get user ID either from newly created user or existing one
-            let userId = authData?.user?.id;
-            
-            if (!userId) {
-              // Try to get the user ID from an existing auth user
-              const { data: existingAuthUser } = await supabase.auth.signInWithPassword({
-                email: 'demo@efarina.tv',
-                password: '123456'
-              });
-              
-              if (existingAuthUser.user) {
-                userId = existingAuthUser.user.id;
-                
-                // Sign out again since we just wanted the ID
-                await supabase.auth.signOut();
-              }
-            }
-            
-            // If we have a user ID, ensure user exists in users table
-            if (userId) {
-              const { error: insertError } = await supabase.from('users').insert([{
+        // If user doesn't exist in users table, add them
+        if (!existingUser || existingUser.length === 0) {
+          // Get user ID - either from new signup or fetch existing
+          let userId = authData?.user?.id;
+          
+          if (!userId) {
+            // Try to get existing user
+            const { data: userData } = await supabase.auth.admin.listUsers();
+            const existingAuthUser = userData?.users?.find(u => u.email === 'demo@efarina.tv');
+            userId = existingAuthUser?.id;
+          }
+          
+          if (userId) {
+            const { error: insertError } = await supabase
+              .from('users')
+              .insert([{
                 id: userId,
                 name: 'User Demo',
                 email: 'demo@efarina.tv',
@@ -117,11 +114,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 status: 'active',
               }]);
               
-              if (insertError && !insertError.message.includes('duplicate')) {
-                console.error('Error inserting dummy user to users table:', insertError);
-              } else {
-                console.log('Dummy user created or existed');
-              }
+            if (insertError && !insertError.message.includes('duplicate')) {
+              console.error('Error inserting dummy user to users table:', insertError);
+            } else {
+              console.log('Dummy user created or updated');
             }
           }
         } else {
@@ -192,6 +188,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           data: {
             name: name,
           },
+          emailRedirectTo: window.location.origin + '/login'
         }
       });
       
@@ -201,21 +198,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (authData.user) {
         console.log("User created in auth:", authData.user.id);
         
-        // Store additional data in users table
-        const { error: profileError } = await supabase.from('users').insert([
-          {
-            id: authData.user.id,
-            name,
-            email,
-            role: 'user',
-            department: 'Umum',
-            status: 'active',
-          }
-        ]);
+        try {
+          // Store additional data in users table
+          const { error: profileError } = await supabase.from('users').insert([
+            {
+              id: authData.user.id,
+              name,
+              email,
+              role: 'user',
+              department: 'Umum',
+              status: 'active',
+            }
+          ]);
 
-        if (profileError) {
-          console.error("Error inserting user profile:", profileError);
-          throw profileError;
+          if (profileError) {
+            console.error("Error inserting user profile:", profileError);
+          }
+        } catch (insertError) {
+          console.error("Error during profile creation:", insertError);
         }
         
         toast({
@@ -291,22 +291,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       setIsLoading(true);
       
-      // Check if user already exists
-      const { data: existingUsers, error: checkError } = await supabase
-        .from('users')
-        .select('*')
-        .eq('email', 'demo@efarina.tv');
-      
-      if (checkError) throw checkError;
-      
-      if (existingUsers && existingUsers.length > 0) {
-        toast({
-          title: "Informasi",
-          description: "Akun demo sudah ada",
-        });
-        return;
-      }
-      
       // Create user in auth
       const { data, error } = await supabase.auth.signUp({
         email: 'demo@efarina.tv',
@@ -318,10 +302,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
       });
       
-      if (error) throw error;
+      if (error && !error.message.includes('already')) throw error;
       
       // Insert user data
-      if (data.user) {
+      if (data?.user) {
         const { error: profileError } = await supabase
           .from('users')
           .insert([
@@ -335,7 +319,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             }
           ]);
           
-        if (profileError) throw profileError;
+        if (profileError && !profileError.message.includes('duplicate')) throw profileError;
       }
       
       toast({

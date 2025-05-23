@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
@@ -11,7 +10,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { LogOut, Settings, User } from 'lucide-react';
+import { LogOut, Settings } from 'lucide-react';
 import supabase from '@/lib/supabase';
 
 const AuthButton = () => {
@@ -24,27 +23,30 @@ const AuthButton = () => {
       if (!user) return;
       
       try {
-        // Try to get user metadata from auth
-        const { data: userData } = await supabase.auth.getUser();
-        const metadata = userData.user?.user_metadata;
+        // First try to get user metadata from auth
+        const metadata = user.user_metadata;
         
         if (metadata?.name) {
           setUserName(metadata.name);
+          console.log('Using name from metadata:', metadata.name);
           return;
         }
         
-        // If not in auth metadata, try from users table
-        const { data, error } = await supabase
-          .from('users')
-          .select('name')
-          .eq('id', user.id)
-          .single();
+        // If not available in metadata, check from the session data
+        const { data: sessionData } = await supabase.auth.getSession();
+        const sessionMetadata = sessionData?.session?.user?.user_metadata;
         
-        if (data && !error) {
-          setUserName(data.name);
+        if (sessionMetadata?.name) {
+          setUserName(sessionMetadata.name);
+          console.log('Using name from session metadata:', sessionMetadata.name);
+          return;
         }
+        
+        console.log('Falling back to email for user display');
+        setUserName(user.email?.split('@')[0] || '');
       } catch (error) {
         console.error('Error fetching user profile:', error);
+        setUserName(user.email?.split('@')[0] || '');
       }
     };
     

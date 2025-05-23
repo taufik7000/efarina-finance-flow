@@ -17,7 +17,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
 import { AlertCircle } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import supabase from '@/lib/supabase';
 
 const Login = () => {
   const navigate = useNavigate();
@@ -38,17 +37,30 @@ const Login = () => {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoginError('');
+    
+    if (!loginEmail || !loginPassword) {
+      setLoginError('Email dan kata sandi harus diisi');
+      return;
+    }
+    
     try {
       await signIn(loginEmail, loginPassword);
+      console.log('Login successful, navigating to home');
       navigate('/');
     } catch (error: any) {
-      setLoginError(error.message);
+      console.error('Login error in component:', error);
+      setLoginError(error.message || 'Terjadi kesalahan saat login');
     }
   };
   
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
     setSignupError('');
+    
+    if (!signupName || !signupEmail || !signupPassword) {
+      setSignupError('Semua field harus diisi');
+      return;
+    }
     
     if (signupPassword.length < 6) {
       setSignupError('Password harus minimal 6 karakter');
@@ -66,7 +78,7 @@ const Login = () => {
       setSignupEmail('');
       setSignupPassword('');
     } catch (error: any) {
-      setSignupError(error.message);
+      setSignupError(error.message || 'Terjadi kesalahan saat mendaftar');
     }
   };
 
