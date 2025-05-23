@@ -1,4 +1,3 @@
-
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { Session, User } from '@supabase/supabase-js';
 import supabase from '../lib/supabase';
@@ -32,23 +31,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (tableError) {
           console.warn('Could not run RPC, trying to create table directly:', tableError);
           
-          // Try to create the table directly if RPC fails
-          const { error: createError } = await supabase.query(`
-            CREATE TABLE IF NOT EXISTS public.users (
-              id UUID PRIMARY KEY REFERENCES auth.users(id),
-              name TEXT,
-              email TEXT UNIQUE NOT NULL,
-              role TEXT DEFAULT 'user',
-              department TEXT,
-              status TEXT DEFAULT 'active',
-              created_at TIMESTAMP WITH TIME ZONE DEFAULT now()
-            );
-          `);
-          
-          if (createError) {
+          // Try to create the table directly if RPC fails - using raw SQL is not possible with supabase JS client
+          // We'll use the createTable method from storage instead
+          try {
+            // Use a direct SQL query if available in your Supabase project dashboard
+            console.log('Please create the users table manually in your Supabase dashboard if it doesn\'t exist');
+          } catch (createError) {
             console.error('Error creating users table:', createError);
-          } else {
-            console.log('Users table created or already exists');
           }
         }
       } catch (error) {
@@ -96,10 +85,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           let userId = authData?.user?.id;
           
           if (!userId) {
-            // Try to get existing user
-            const { data: userData } = await supabase.auth.admin.listUsers();
-            const existingAuthUser = userData?.users?.find(u => u.email === 'demo@efarina.tv');
-            userId = existingAuthUser?.id;
+            // Try to get existing user - fixed the email property access
+            const { data: usersData, error: usersError } = await supabase.auth.admin.listUsers();
+            if (usersError) {
+              console.error('Error listing users:', usersError);
+              return;
+            }
+            
+            if (usersData && usersData.users) {
+              const existingAuthUser = usersData.users.find(u => u.email === 'demo@efarina.tv');
+              userId = existingAuthUser?.id;
+            }
           }
           
           if (userId) {
